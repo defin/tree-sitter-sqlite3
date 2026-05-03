@@ -139,7 +139,6 @@ RELEASE SAVEPOINT s1;
 .tables
 .quit
 .load extension.so
-.somenewcommand args here
 UPDATE users SET name = 'alice';
 UPDATE users SET name = 'alice', age = 30;
 UPDATE users SET name = 'alice' WHERE id = 1;

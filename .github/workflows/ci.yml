@@ -60,7 +60,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip build
       - run: python -m pip install -e ".[core]"
-      - run: python -c "import tree_sitter, tree_sitter_sqlite3; lang = tree_sitter.Language(tree_sitter_sqlite3.language()); p = tree_sitter.Parser(lang); print(p.parse(b'SELECT 1;').root_node.sexp())"
+      - run: python -c "import tree_sitter, tree_sitter_sqlite3; lang = tree_sitter.Language(tree_sitter_sqlite3.language()); p = tree_sitter.Parser(lang); print(p.parse(b'SELECT 1;').root_node)"
 
   rust-binding:
     name: rust binding
@@ -71,7 +71,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
-      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1 (stable)
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1
+        with:
+          toolchain: stable
       - run: cargo build --verbose
       - run: cargo test --verbose
 
@@ -123,8 +125,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
-      - name: install libsqlite3
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: build libsqlite3 3.47.0 from amalgamation
+        # Ubuntu's apt libsqlite3-dev tracks 3.45.x; the differential
+        # harness needs the same version pinned in vendor/ to avoid
+        # version-drift SS-AR. differential-test.py prefers
+        # /usr/local/lib/libsqlite3.so over the system copy.
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends unzip
+          curl -fsSL https://sqlite.org/2024/sqlite-amalgamation-3470000.zip -o /tmp/s.zip
+          (cd /tmp && unzip -q s.zip)
+          gcc -O2 -fPIC -shared \
+              -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE \
+              /tmp/sqlite-amalgamation-3470000/sqlite3.c \
+              -I /tmp/sqlite-amalgamation-3470000 \
+              -lpthread -ldl -lm \
+              -o /tmp/libsqlite3.so
+          sudo install -m644 /tmp/libsqlite3.so /usr/local/lib/libsqlite3.so
+          sudo ldconfig
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.13"
