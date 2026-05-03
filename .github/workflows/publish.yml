@@ -1,10 +1,19 @@
 name: publish
 
-# Triggered by pushing a v* tag. Each registry job is independent —
-# if PyPI succeeds and npm fails, you can re-run only the npm job.
+# Triggered by pushing a v* tag (publishes all three registries) or
+# manually via workflow_dispatch (target one registry — useful when
+# one registry needs a re-publish but others are already done).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which registry to publish to"
+        required: true
+        default: "all"
+        type: choice
+        options: [all, pypi, npm, cargo]
 
 permissions:
   contents: read
@@ -12,6 +21,7 @@ permissions:
 jobs:
   pypi:
     name: PyPI (trusted publishing)
+    if: github.event_name == 'push' || inputs.target == 'pypi' || inputs.target == 'all'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -22,12 +32,16 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip build twine
-      - run: python -m build --sdist --wheel
+      # sdist only for now. A platform-bare linux_x86_64 wheel is
+      # rejected by PyPI (which requires manylinux* tags); proper
+      # cross-platform wheels via cibuildwheel are a follow-up.
+      - run: python -m build --sdist
       - run: python -m twine check dist/*
       - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0
 
   npm:
     name: npm
+    if: github.event_name == 'push' || inputs.target == 'npm' || inputs.target == 'all'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,6 +60,7 @@ jobs:
 
   cargo:
     name: crates.io
+    if: github.event_name == 'push' || inputs.target == 'cargo' || inputs.target == 'all'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
