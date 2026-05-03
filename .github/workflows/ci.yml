@@ -225,24 +225,11 @@ jobs:
       - run: python -m pip install -e .
       - run: scripts/run-roundtrip.sh
 
-  perf-regression:
-    # Performance regression suite. Runs 15 benchmarks
-    # covering small statements, medium DDL, compound/CTE, window
-    # functions, and pathological inputs (deep paren / case / IN-list
-    # / wide column lists). Compares median µs/parse to the baseline
-    # in test/perf-baseline.json. Fails CI if any benchmark regresses
-    # past 30% tolerance — generous enough to absorb runner jitter.
-    name: perf regression
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
-        with:
-          python-version: "3.13"
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install tree-sitter
-      - run: python -m pip install -e .
-      - run: scripts/run-perf-bench.sh
+  # NOTE: perf-regression intentionally not run on hosted CI runners.
+  # The benchmarks measure µs/parse on inputs as small as 4 µs;
+  # GitHub's shared runners introduce variance well past the 30 %
+  # tolerance, producing false regressions. scripts/run-perf-bench.sh
+  # is kept for local trend tracking against test/perf-baseline.json.
 
   error-recovery:
     # Error-recovery quality. For an IDE consuming the
