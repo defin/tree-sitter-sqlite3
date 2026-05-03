@@ -1,0 +1,299 @@
+==============================================
+join: implicit cross via comma
+==============================================
+
+SELECT * FROM a, b;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))))
+
+==============================================
+join: INNER JOIN with ON
+==============================================
+
+SELECT * FROM a INNER JOIN b ON a.id = b.a_id;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))
+        constraint: (binary_expression
+          left: (column_reference
+            table: (identifier)
+            name: (identifier))
+          right: (column_reference
+            table: (identifier)
+            name: (identifier)))))))
+
+==============================================
+join: LEFT JOIN with USING
+==============================================
+
+SELECT * FROM a LEFT JOIN b USING (id);
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))
+        constraint: (identifier)))))
+
+==============================================
+join: LEFT OUTER JOIN
+==============================================
+
+SELECT * FROM a LEFT OUTER JOIN b ON a.x = b.x;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))
+        constraint: (binary_expression
+          left: (column_reference
+            table: (identifier)
+            name: (identifier))
+          right: (column_reference
+            table: (identifier)
+            name: (identifier)))))))
+
+==============================================
+join: NATURAL JOIN
+==============================================
+
+SELECT * FROM a NATURAL JOIN b;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))))
+
+==============================================
+join: CROSS JOIN
+==============================================
+
+SELECT * FROM a CROSS JOIN b;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))))
+
+==============================================
+join: three-way chained
+==============================================
+
+SELECT * FROM a JOIN b ON a.x=b.x JOIN c ON b.y=c.y;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))
+        constraint: (binary_expression
+          left: (column_reference
+            table: (identifier)
+            name: (identifier))
+          right: (column_reference
+            table: (identifier)
+            name: (identifier))))
+      join: (join_step
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))
+        constraint: (binary_expression
+          left: (column_reference
+            table: (identifier)
+            name: (identifier))
+          right: (column_reference
+            table: (identifier)
+            name: (identifier)))))))
+
+==============================================
+subquery: in WHERE via IN
+==============================================
+
+SELECT * FROM a WHERE id IN (SELECT id FROM b);
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (in_subquery_expression
+        operand: (column_reference
+          name: (identifier))
+        (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (column_reference
+                name: (identifier))))
+          from: (from_clause
+            source: (table_or_subquery
+              (qualified_table_name
+                name: (identifier)))))))))
+
+==============================================
+subquery: EXISTS
+==============================================
+
+SELECT * FROM a WHERE EXISTS (SELECT 1 FROM b WHERE b.x = a.x);
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (exists_expression
+        (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (numeric_literal)))
+          from: (from_clause
+            source: (table_or_subquery
+              (qualified_table_name
+                name: (identifier))))
+          where: (where_clause
+            (binary_expression
+              left: (column_reference
+                table: (identifier)
+                name: (identifier))
+              right: (column_reference
+                table: (identifier)
+                name: (identifier)))))))))
+
+==============================================
+subquery: scalar in SELECT list
+==============================================
+
+SELECT (SELECT max(id) FROM b) FROM a;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (subquery_expression
+          (select_clause
+            columns: (result_column_list
+              (expression_result_column
+                expression: (function_call
+                  name: (identifier)
+                  arguments: (normal_function_arguments
+                    (column_reference
+                      name: (identifier))))))
+            from: (from_clause
+              source: (table_or_subquery
+                (qualified_table_name
+                  name: (identifier))))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+subquery: in FROM clause
+==============================================
+
+SELECT * FROM (SELECT id FROM users) AS u;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (column_reference
+                name: (identifier))))
+          from: (from_clause
+            source: (table_or_subquery
+              (qualified_table_name
+                name: (identifier)))))
+        alias: (identifier)))))

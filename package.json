@@ -1,0 +1,59 @@
+{
+  "name": "tree-sitter-sqlite3",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for SQLite's SQL dialect plus dot-commands, faithful to upstream parse.y.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/defin/tree-sitter-sqlite3.git"
+  },
+  "homepage": "https://github.com/defin/tree-sitter-sqlite3#readme",
+  "bugs": {
+    "url": "https://github.com/defin/tree-sitter-sqlite3/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "CC0-1.0",
+  "author": "df <defin@users.noreply.github.com>",
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "incremental",
+    "parsing",
+    "sqlite",
+    "sql",
+    "tree-sitter"
+  ],
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "bindings/node/*",
+    "queries/*",
+    "src/**",
+    "tree-sitter.json"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.0.0",
+    "node-gyp-build": "^4.8.0"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.0",
+    "prebuildify": "^6.0.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.25.0"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "tree-sitter build && node-gyp-build",
+    "install": "node-gyp-build",
+    "prebuildify": "prebuildify --napi --strip",
+    "generate": "tree-sitter generate",
+    "test": "node --test bindings/node/*_test.js && tree-sitter test",
+    "parse": "tree-sitter parse"
+  }
+}

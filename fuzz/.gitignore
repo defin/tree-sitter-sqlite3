@@ -1,0 +1,3 @@
+# Built fuzzer binary (built via fuzz/build-fuzz.sh).
+fuzz_target
+*.o

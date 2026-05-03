@@ -1,0 +1,37 @@
+[package]
+name = "tree-sitter-sqlite3"
+description = "Tree-sitter grammar for SQLite's SQL dialect plus dot-commands, faithful to upstream parse.y."
+version = "0.1.0"
+authors = ["df <defin@users.noreply.github.com>"]
+license = "CC0-1.0"
+readme = "bindings/rust/README.md"
+keywords = ["incremental", "parsing", "tree-sitter", "sqlite"]
+categories = ["parser-implementations", "parsing", "text-editors"]
+repository = "https://github.com/defin/tree-sitter-sqlite3"
+homepage = "https://github.com/defin/tree-sitter-sqlite3"
+documentation = "https://docs.rs/tree-sitter-sqlite3"
+edition = "2021"
+rust-version = "1.74"
+autoexamples = false
+
+build = "bindings/rust/build.rs"
+include = [
+  "bindings/rust/*",
+  "grammar.js",
+  "queries/*",
+  "src/*",
+  "tree-sitter.json",
+  "LICENSE",
+]
+
+[lib]
+path = "bindings/rust/lib.rs"
+
+[dependencies]
+tree-sitter-language = "0.1"
+
+[build-dependencies]
+cc = "1.1.22"
+
+[dev-dependencies]
+tree-sitter = "0.25"

@@ -1,0 +1,172 @@
+==============================================
+update: simple set
+==============================================
+
+UPDATE users SET name = 'alice';
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))))
+
+==============================================
+update: multiple assignments
+==============================================
+
+UPDATE users SET name = 'alice', age = 30;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (numeric_literal))))
+
+==============================================
+update: with where
+==============================================
+
+UPDATE users SET name = 'alice' WHERE id = 1;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (numeric_literal)))))
+
+==============================================
+update: schema-qualified target
+==============================================
+
+UPDATE main.users SET name = 'a' WHERE id = 1;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (numeric_literal)))))
+
+==============================================
+update: or replace
+==============================================
+
+UPDATE OR REPLACE users SET name = 'alice';
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))))
+
+==============================================
+update: with order by and limit
+==============================================
+
+UPDATE users SET name = 'a' ORDER BY id DESC LIMIT 10;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))
+    order_by: (order_by_clause
+      (order_term
+        (column_reference
+          name: (identifier))))
+    limit: (limit_clause
+      (numeric_literal))))
+
+==============================================
+update: limit with offset
+==============================================
+
+UPDATE users SET x = 1 LIMIT 10 OFFSET 5;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (numeric_literal))
+    limit: (limit_clause
+      (numeric_literal)
+      (numeric_literal))))
+
+==============================================
+update: indexed by clause
+==============================================
+
+UPDATE users INDEXED BY idx_name SET x = 1;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    (identifier)
+    assignment: (set_assignment
+      column: (identifier)
+      value: (numeric_literal))))
+
+==============================================
+update: case-insensitive keywords
+==============================================
+
+update users set name = 'alice' where id = 1;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (string_literal))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (numeric_literal)))))

@@ -1,0 +1,958 @@
+==============================================
+expr: arithmetic precedence
+==============================================
+
+SELECT 1 + 2 * 3;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (binary_expression
+          left: (numeric_literal)
+          right: (binary_expression
+            left: (numeric_literal)
+            right: (numeric_literal)))))))
+
+==============================================
+expr: comparison and logical
+==============================================
+
+SELECT id FROM t WHERE id > 1 AND name = 'a';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (binary_expression
+        left: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))
+        right: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (string_literal))))))
+
+==============================================
+expr: bitwise and shift (all same precedence, left-assoc)
+==============================================
+
+SELECT a & b | c << 2;
+
+---
+
+; sqlite's parse.y puts & | << >> all on the same %left BITWISE
+; line, so this parses left-to-right as (((a & b) | c) << 2).
+; That differs from C's precedence (which gives shifts higher
+; precedence than bitwise) — sqlite is intentional here.
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (binary_expression
+          left: (binary_expression
+            left: (binary_expression
+              left: (column_reference
+                name: (identifier))
+              right: (column_reference
+                name: (identifier)))
+            right: (column_reference
+              name: (identifier)))
+          right: (numeric_literal))))))
+
+==============================================
+expr: string concat
+==============================================
+
+SELECT a || 'x';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (string_literal))))))
+
+==============================================
+expr: JSON arrow operators
+==============================================
+
+SELECT data -> 'a' ->> 'b';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (binary_expression
+          left: (binary_expression
+            left: (column_reference
+              name: (identifier))
+            right: (string_literal))
+          right: (string_literal))))))
+
+==============================================
+expr: unary minus and bitnot
+==============================================
+
+SELECT -x, ~y, NOT z;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (unary_expression
+          operand: (column_reference
+            name: (identifier))))
+      (expression_result_column
+        expression: (unary_expression
+          operand: (column_reference
+            name: (identifier))))
+      (expression_result_column
+        expression: (unary_expression
+          operand: (column_reference
+            name: (identifier)))))))
+
+==============================================
+expr: IS NULL — binary IS with NULL on right
+==============================================
+
+SELECT * FROM t WHERE x IS NULL;
+
+---
+
+; sqlite parses `x IS NULL` as the binary `expr IS expr` rule
+; (parse.y line 1344), with NULL as a right-side term. The
+; ISNULL postfix rule (line 1322) fires only for the single
+; token `x ISNULL` (no space), or `x NOT NULL` (line 1323).
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (is_expression
+        left: (column_reference
+          name: (identifier))
+        right: (null_literal)))))
+
+==============================================
+expr: NOT NULL postfix
+==============================================
+
+SELECT * FROM t WHERE x NOT NULL;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (is_null_expression
+        operand: (column_reference
+          name: (identifier))))))
+
+==============================================
+expr: IS DISTINCT FROM
+==============================================
+
+SELECT * FROM t WHERE a IS NOT DISTINCT FROM b;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (is_expression
+        left: (column_reference
+          name: (identifier))
+        right: (column_reference
+          name: (identifier))))))
+
+==============================================
+expr: BETWEEN
+==============================================
+
+SELECT * FROM t WHERE x BETWEEN 1 AND 10;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (between_expression
+        operand: (column_reference
+          name: (identifier))
+        low: (numeric_literal)
+        high: (numeric_literal)))))
+
+==============================================
+expr: NOT BETWEEN
+==============================================
+
+SELECT * FROM t WHERE x NOT BETWEEN 1 AND 10;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (between_expression
+        operand: (column_reference
+          name: (identifier))
+        low: (numeric_literal)
+        high: (numeric_literal)))))
+
+==============================================
+expr: IN list
+==============================================
+
+SELECT * FROM t WHERE x IN (1, 2, 3);
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (in_list_expression
+        operand: (column_reference
+          name: (identifier))
+        values: (numeric_literal)
+        values: (numeric_literal)
+        values: (numeric_literal)))))
+
+==============================================
+expr: LIKE with ESCAPE
+==============================================
+
+SELECT * FROM t WHERE x LIKE 'a\_%' ESCAPE '\';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (like_expression
+        operand: (column_reference
+          name: (identifier))
+        pattern: (string_literal)
+        escape: (string_literal)))))
+
+==============================================
+expr: GLOB
+==============================================
+
+SELECT * FROM t WHERE x GLOB 'foo*';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (like_expression
+        operand: (column_reference
+          name: (identifier))
+        pattern: (string_literal)))))
+
+==============================================
+expr: REGEXP
+==============================================
+
+SELECT * FROM t WHERE x REGEXP '^[A-Z]+$';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (like_expression
+        operand: (column_reference
+          name: (identifier))
+        pattern: (string_literal)))))
+
+==============================================
+expr: MATCH (binary, used by FTS)
+==============================================
+
+SELECT * FROM t WHERE x MATCH 'phrase';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (string_literal)))))
+
+==============================================
+expr: NOT LIKE
+==============================================
+
+SELECT * FROM t WHERE x NOT LIKE '%foo%';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (like_expression
+        operand: (column_reference
+          name: (identifier))
+        pattern: (string_literal)))))
+
+==============================================
+expr: NOT MATCH
+==============================================
+
+SELECT * FROM t WHERE 'X' NOT MATCH 'Y';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    where: (where_clause
+      (binary_expression
+        left: (string_literal)
+        right: (string_literal)))))
+
+==============================================
+expr: COLLATE
+==============================================
+
+SELECT name COLLATE NOCASE FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (collate_expression
+          operand: (column_reference
+            name: (identifier))
+          collation: (identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: CAST
+==============================================
+
+SELECT CAST(x AS INTEGER) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (cast_expression
+          value: (column_reference
+            name: (identifier))
+          type: (type_name
+            (identifier)))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: CAST with parameterized type
+==============================================
+
+SELECT CAST(x AS VARCHAR(255)) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (cast_expression
+          value: (column_reference
+            name: (identifier))
+          type: (type_name
+            (identifier)
+            (numeric_literal)))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: CASE simple
+==============================================
+
+SELECT CASE x WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'other' END;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (case_expression
+          subject: (column_reference
+            name: (identifier))
+          when: (numeric_literal)
+          then: (string_literal)
+          when: (numeric_literal)
+          then: (string_literal)
+          else: (string_literal))))))
+
+==============================================
+expr: CASE searched
+==============================================
+
+SELECT CASE WHEN x > 0 THEN 'pos' ELSE 'np' END;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (case_expression
+          when: (binary_expression
+            left: (column_reference
+              name: (identifier))
+            right: (numeric_literal))
+          then: (string_literal)
+          else: (string_literal))))))
+
+==============================================
+expr: function call
+==============================================
+
+SELECT count(*), max(id) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (star_argument)))
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (normal_function_arguments
+            (column_reference
+              name: (identifier))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: function call with DISTINCT
+==============================================
+
+SELECT count(DISTINCT id) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (normal_function_arguments
+            (column_reference
+              name: (identifier))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: nested function call
+==============================================
+
+SELECT length(trim(name)) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (normal_function_arguments
+            (function_call
+              name: (identifier)
+              arguments: (normal_function_arguments
+                (column_reference
+                  name: (identifier))))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+expr: schema-qualified column
+==============================================
+
+SELECT main.users.id FROM main.users;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          schema: (identifier)
+          table: (identifier)
+          name: (identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          schema: (identifier)
+          name: (identifier))))))
+
+==============================================
+expr: CURRENT_TIMESTAMP literal
+==============================================
+
+SELECT CURRENT_TIMESTAMP;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (current_time_literal)))))
+
+==============================================
+literal: hex integer
+==============================================
+
+SELECT 0xFF, 0xDEADBEEF, 0X10;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+literal: blob
+==============================================
+
+SELECT x'01020304', X'AABB', x'';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (blob_literal))
+      (expression_result_column
+        expression: (blob_literal))
+      (expression_result_column
+        expression: (blob_literal)))))
+
+==============================================
+literal: scientific notation
+==============================================
+
+SELECT 1e10, 1.5e-3, 1.5E+2, 0.5e0;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+literal: NULL
+==============================================
+
+SELECT NULL, null, Null;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (null_literal))
+      (expression_result_column
+        expression: (null_literal))
+      (expression_result_column
+        expression: (null_literal)))))
+
+==============================================
+literal: TRUE / FALSE
+==============================================
+
+SELECT TRUE, FALSE, true, false;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (true_literal))
+      (expression_result_column
+        expression: (false_literal))
+      (expression_result_column
+        expression: (true_literal))
+      (expression_result_column
+        expression: (false_literal)))))
+
+==============================================
+literal: numeric with underscore separators
+==============================================
+
+SELECT 1_000_000, 0xFF_EE, 1.5_5e1_0;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal))
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+quoting: single-quoted string with escaped quote
+==============================================
+
+SELECT 'it''s';
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (string_literal)))))
+
+==============================================
+quoting: double-quoted identifier
+==============================================
+
+SELECT "col with spaces" FROM "table name";
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (quoted_identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (quoted_identifier))))))
+
+==============================================
+quoting: backtick identifier
+==============================================
+
+SELECT `col` FROM `tbl`;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (quoted_identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (quoted_identifier))))))
+
+==============================================
+quoting: bracket identifier
+==============================================
+
+SELECT [col] FROM [tbl];
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (quoted_identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (quoted_identifier))))))
+
+==============================================
+quoting: string-literal as identifier (sqlite legacy fallback)
+==============================================
+
+CREATE TABLE 'name with spaces' (a INT);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (string_literal))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))))
+
+==============================================
+quoting: doubled-quote escape inside double-quoted identifier
+==============================================
+
+SELECT "col""name" FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (quoted_identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+comment: line comment to EOL
+==============================================
+
+SELECT 1; -- trailing comment
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (line_comment))
+
+==============================================
+comment: block comment between tokens
+==============================================
+
+SELECT /* mid-statement */ 1;
+
+---
+
+(source_file
+  (select_statement
+    (block_comment)
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+comment: line comment before statement
+==============================================
+
+-- header
+SELECT 1;
+
+---
+
+(source_file
+  (line_comment)
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+comment: multi-line block comment
+==============================================
+
+SELECT /*
+ multi
+ line
+*/ 1;
+
+---
+
+(source_file
+  (select_statement
+    (block_comment)
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+comment: line comment at EOF (no trailing newline)
+==============================================
+
+SELECT 1; -- last comment, no \n
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (line_comment))
+
+==============================================
+comment: unterminated block comment to EOF
+==============================================
+
+SELECT 1; /* runs to end
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (block_comment))
+
+==============================================
+comment: between expression and operator
+==============================================
+
+SELECT a /* before */ + /* after */ b FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          (block_comment)
+          (block_comment)
+          right: (column_reference
+            name: (identifier)))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))

@@ -1,0 +1,36 @@
+# Development container for tree-sitter-sqlite3.
+#
+# Provides a reproducible toolchain (node + tree-sitter-cli + python +
+# rust + build-essential) so contributors don't need to install any of
+# it on the host. Typical usage:
+#
+#     docker compose build
+#     docker compose run --rm dev tree-sitter generate
+#     docker compose run --rm dev tree-sitter test
+#     docker compose run --rm dev tree-sitter parse path/to/file.sql
+#     docker compose run --rm dev cargo test
+#     docker compose run --rm dev pip install -e . && pytest
+#
+# The repo is bind-mounted at /workspace, so generated artifacts
+# (src/parser.c, prebuilds, target/) land back on the host and can
+# be committed.
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: tree-sitter-sqlite3-dev:latest
+    volumes:
+      - ./:/workspace
+      # Persist node_modules / cargo registry / pip cache across
+      # invocations so we don't re-download on every container run.
+      - ts-sqlite3-node-modules:/workspace/node_modules
+      - ts-sqlite3-cargo-registry:/root/.cargo/registry
+      - ts-sqlite3-pip-cache:/root/.cache/pip
+    working_dir: /workspace
+
+volumes:
+  ts-sqlite3-node-modules:
+  ts-sqlite3-cargo-registry:
+  ts-sqlite3-pip-cache:

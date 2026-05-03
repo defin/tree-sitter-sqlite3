@@ -1,0 +1,38 @@
+.git
+.gitignore
+.github
+
+# Local build / runtime state
+node_modules
+build
+target
+dist
+*.egg-info
+__pycache__
+.venv
+.tox
+
+# Compiled binding outputs
+*.so
+*.dylib
+*.dll
+*.wasm
+*.o
+*.a
+
+# Editor / OS junk
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Local project-todo DB
+.todo.ini
+todo.sqlite
+
+# On-demand fetched test corpus
+vendor/sqlite-test-corpus
+
+# Logs / coverage scratch
+*.log
+coverage

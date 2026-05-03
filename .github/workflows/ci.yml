@@ -1,0 +1,366 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  grammar:
+    name: grammar (generate + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "22"
+      - run: npm install -g tree-sitter-cli@0.25
+      - name: tree-sitter generate (verify src/ is up to date)
+        run: |
+          tree-sitter generate
+          if ! git diff --quiet -- src/; then
+            echo "::error::src/ is stale; run 'tree-sitter generate' and commit the result"
+            git --no-pager diff --stat -- src/
+            exit 1
+          fi
+      - run: tree-sitter test
+
+  node-binding:
+    name: node binding
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: node --test bindings/node/*_test.js
+        if: hashFiles('bindings/node/*_test.js') != ''
+
+  python-binding:
+    name: python binding
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip build
+      - run: python -m pip install -e ".[core]"
+      - run: python -c "import tree_sitter, tree_sitter_sqlite3; lang = tree_sitter.Language(tree_sitter_sqlite3.language()); p = tree_sitter.Parser(lang); print(p.parse(b'SELECT 1;').root_node.sexp())"
+
+  rust-binding:
+    name: rust binding
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9  # v1 (stable)
+      - run: cargo build --verbose
+      - run: cargo test --verbose
+
+  go-binding:
+    name: go binding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5.6.0
+        with:
+          go-version: "1.22"
+      # `-mod=mod` because our top-level `vendor/` directory holds
+      # vendored sqlite source files (not Go vendor deps), and the Go
+      # toolchain heuristically treats any vendor/ as Go-vendor unless
+      # explicitly told otherwise.
+      - run: go test -mod=mod ./bindings/go/...
+
+  upstream-corpus:
+    # Parses every SQL fragment extracted from sqlite's upstream test/
+    # directory through our grammar. This is the load-bearing test for
+    # the README's "faithful reproduction" claim.
+    #
+    # Pass rate is locked at >= 0.992 (current is 0.993). The remaining
+    # ~250 failures cluster into negative tests (sqlite would also
+    # reject), virtual-table module-arg edge cases, and a few rare
+    # syntactic constructs tracked separately. The threshold lets
+    # the harness be required without making every grammar tweak fight
+    # the long-tail edge cases — we only fail CI if the rate regresses.
+    name: upstream sqlite test corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-upstream-corpus.sh --summary-only --threshold 0.995
+
+  differential-libsqlite3:
+    # Differential test: feeds the same upstream-corpus SQL fragments
+    # through both libsqlite3 (via ctypes) and our grammar, then
+    # classifies the four-way agreement matrix. Catches "we reject what
+    # sqlite accepts" (real grammar bugs) distinct from "we reject what
+    # sqlite also rejects" (correct, common in negative tests).
+    # Threshold is the clean-rate floor; below it CI fails.
+    name: differential vs libsqlite3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: install libsqlite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-differential.sh --summary-only
+
+  grammar-coverage:
+    # Production-level coverage: every named node type declared by the
+    # grammar must appear in at least one parsed input across the
+    # combined hand-written + upstream corpus. An unhit type means a
+    # rule is dead code, unreachable, or — most often — exercising a
+    # construct we never wrote a fixture for.
+    name: grammar coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-coverage.sh --threshold 1.0
+
+  snapshots:
+    # Tree-shape snapshot regression suite. Re-parses every
+    # input in test/snapshots/inputs.txt and byte-compares the
+    # resulting s-expression to the stored snapshot. Catches silent
+    # shape drift on grammar edits — a complement to tree-sitter test
+    # which only covers the 147 hand-written fixtures, and to the
+    # upstream-corpus harness which only checks parse success/failure.
+    name: snapshot regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-snapshots.sh
+
+  extras-placement:
+    # Splices `--` and `/* */` comments between every pair of adjacent
+    # tokens in the snapshot input set, asserting both that every
+    # variant parses cleanly AND that the resulting tree shape (with
+    # comments filtered out) matches the no-comment baseline. Catches
+    # token rules that accidentally swallow whitespace and extras
+    # placement bugs that only surface at specific positions.
+    name: extras-placement matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-extras-placement.sh
+
+  roundtrip:
+    # Roundtrip property suite. Asserts that every parsed
+    # tree's root range covers the entire input, that concatenated
+    # leaf text reproduces the input byte-for-byte (modulo extras
+    # whitespace), and that sibling ranges are weakly monotonic.
+    # Catches silent extras-handling bugs and tokens that swallow
+    # surrounding text without exposing it in the tree.
+    name: roundtrip property
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-roundtrip.sh
+
+  perf-regression:
+    # Performance regression suite. Runs 15 benchmarks
+    # covering small statements, medium DDL, compound/CTE, window
+    # functions, and pathological inputs (deep paren / case / IN-list
+    # / wide column lists). Compares median µs/parse to the baseline
+    # in test/perf-baseline.json. Fails CI if any benchmark regresses
+    # past 30% tolerance — generous enough to absorb runner jitter.
+    name: perf regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-perf-bench.sh
+
+  error-recovery:
+    # Error-recovery quality. For an IDE consuming the
+    # parse tree, the QUALITY of recovery on malformed input matters
+    # as much as success on well-formed input. This harness asserts
+    # that on each curated malformed input: parse doesn't crash, at
+    # least one diagnostic node surfaces, and the diagnostic span is
+    # localized to the malformed region rather than swallowing the
+    # whole statement.
+    name: error-recovery quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-error-recovery.sh
+
+  fallback-matrix:
+    # Mechanical keyword-fallback coverage. Reads parse.y's
+    # %fallback ID block, extracts the 69 fallback keywords, then
+    # tests each in 4 identifier positions (column, table, alias,
+    # CTE). 276 variants total. Catches regressions where a keyword
+    # we thought was fallback-eligible has slipped out of `_id`'s
+    # choice set, or where parse.y added a new fallback in a release.
+    name: keyword-fallback matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-fallback-matrix.sh
+
+  precedence-matrix:
+    # Mechanical operator-precedence pair matrix. Reads
+    # parse.y's %left/%right/%nonassoc declarations, generates
+    # `x op_a y op_b z` for every ordered pair of 22 binary operators
+    # (484 pairs). Each must parse cleanly. Catches regressions where
+    # an operator slips out of its precedence level after grammar
+    # edits, or where two operators get conflicting prec assignments.
+    name: precedence-pair matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-precedence-matrix.sh
+
+  lexer-differential:
+    # Lexer-level differential vs sqlite's own tokenize.c.
+    # Builds a sqlite-tokenize shim (sqlite3.c compiled with
+    # SQLITE_PRIVATE= to expose sqlite3GetToken), runs each snapshot
+    # input through both sqlite's tokenizer and our tree-sitter leaf
+    # walk, compares token-span SETS. 139 comparable inputs (8
+    # skipped: dot-commands and vtab module-args, which we coalesce
+    # by design while sqlite tokenizes finer). The shim binary
+    # already lives in the dev container image, so we just docker-
+    # compose run; no separate sqlite build needed.
+    name: lexer differential
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: build sqlite-tokenize shim
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends unzip
+          curl -fsSL https://sqlite.org/2024/sqlite-amalgamation-3470000.zip -o /tmp/s.zip
+          (cd /tmp && unzip -q s.zip)
+          gcc -O2 -DSQLITE_PRIVATE= -DSQLITE_API= \
+              tools/sqlite-tokenize.c /tmp/sqlite-amalgamation-3470000/sqlite3.c \
+              -I /tmp/sqlite-amalgamation-3470000 \
+              -o /usr/local/bin/sqlite-tokenize -lpthread -ldl -lm
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-lexer-differential.sh
+
+  fuzz-mutate:
+    # Mutation-based fuzzer. Deterministic — fixed seed
+    # and iter count produce identical output every run. Mutates
+    # snapshot inputs (drop / duplicate / swap / replace / insert
+    # tokens) and runs each mutant through libsqlite3 + our parser,
+    # checking they agree. SS-AR ≤ 14 is the current ceiling (the
+    # 14 cases at seed=0xdeadbeef are mutation-induced sqlite-leniency
+    # edge cases — token mash-ups like STOREDNOT, trailing tokens
+    # after table-def, empty CAST type).
+    name: mutation fuzzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: install libsqlite3
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install tree-sitter
+      - run: python -m pip install -e .
+      - run: scripts/run-fuzz-mutate.sh --iters 5000 --max-ss-ar 14
+
+  fuzz-libfuzzer:
+    # libFuzzer + ASAN/UBSAN harness on the parser .so.
+    # Catches crashes, hangs, OOM, and undefined behaviour in the
+    # generated parser and external scanner. CI budget: 60 seconds
+    # per push; nightly cron could run longer. Findings get
+    # committed to fuzz/findings/ as regression tests.
+    name: libFuzzer + ASAN
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - name: install clang + libtree-sitter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              clang llvm libclang-rt-14-dev
+          curl -fsSL https://github.com/tree-sitter/tree-sitter/archive/refs/tags/v0.25.10.tar.gz \
+              -o /tmp/ts.tar.gz
+          (cd /tmp && tar -xzf ts.tar.gz)
+          (cd /tmp/tree-sitter-0.25.10 && \
+              make CFLAGS="-O2 -fPIC" -j"$(nproc)" && \
+              sudo make PREFIX=/usr/local install && \
+              sudo ldconfig)
+      - run: mkdir -p build
+      - run: fuzz/build-fuzz.sh
+      - run: fuzz/run-fuzz.sh -max_total_time=60 -seed=1

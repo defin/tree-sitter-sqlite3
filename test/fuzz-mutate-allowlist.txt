@@ -1,0 +1,11 @@
+# Allowlist for the mutation-based fuzzer (scripts/fuzz-mutate.py).
+#
+# Lists mutated SQL strings (with `\n` / `\t` / `\\` escaping) that
+# are permitted to be SS-AR (sqlite accepts, we reject). Same policy
+# as test/differential-allowlist.txt: each entry needs a one-line
+# rationale tying it to a documented sqlite-leniency category.
+#
+# Usually this file stays empty — the fuzzer's failures are either
+# real grammar bugs to fix, or new instances of the categories already
+# documented in docs/allowlists.md (in which case the right fix is
+# to update the grammar, not allowlist the specific mutant).

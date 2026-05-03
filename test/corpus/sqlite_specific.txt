@@ -1,0 +1,577 @@
+==============================================
+attach: bare
+==============================================
+
+ATTACH 'mydb.sqlite' AS mydb;
+
+---
+
+(source_file
+  (attach_statement
+    source: (string_literal)
+    schema: (column_reference
+      name: (identifier))))
+
+==============================================
+attach: with DATABASE keyword and KEY
+==============================================
+
+ATTACH DATABASE 'enc.db' AS enc KEY 'secret';
+
+---
+
+(source_file
+  (attach_statement
+    source: (string_literal)
+    schema: (column_reference
+      name: (identifier))
+    key: (string_literal)))
+
+==============================================
+detach: bare
+==============================================
+
+DETACH mydb;
+
+---
+
+(source_file
+  (detach_statement
+    schema: (column_reference
+      name: (identifier))))
+
+==============================================
+detach: with DATABASE keyword
+==============================================
+
+DETACH DATABASE mydb;
+
+---
+
+(source_file
+  (detach_statement
+    schema: (column_reference
+      name: (identifier))))
+
+==============================================
+pragma: bare query
+==============================================
+
+PRAGMA foreign_keys;
+
+---
+
+(source_file
+  (pragma_statement
+    name: (identifier)))
+
+==============================================
+pragma: assignment
+==============================================
+
+PRAGMA foreign_keys = ON;
+
+---
+
+(source_file
+  (pragma_statement
+    name: (identifier)
+    value: (identifier)))
+
+==============================================
+pragma: numeric value
+==============================================
+
+PRAGMA cache_size = 10000;
+
+---
+
+(source_file
+  (pragma_statement
+    name: (identifier)
+    value: (numeric_literal)))
+
+==============================================
+pragma: schema-qualified
+==============================================
+
+PRAGMA main.journal_mode = WAL;
+
+---
+
+(source_file
+  (pragma_statement
+    schema: (identifier)
+    name: (identifier)
+    value: (identifier)))
+
+==============================================
+pragma: paren value
+==============================================
+
+PRAGMA temp_store(MEMORY);
+
+---
+
+(source_file
+  (pragma_statement
+    name: (identifier)
+    value: (identifier)))
+
+==============================================
+vacuum: bare
+==============================================
+
+VACUUM;
+
+---
+
+(source_file
+  (vacuum_statement))
+
+==============================================
+vacuum: schema
+==============================================
+
+VACUUM main;
+
+---
+
+(source_file
+  (vacuum_statement
+    schema: (identifier)))
+
+==============================================
+vacuum: INTO file
+==============================================
+
+VACUUM INTO 'backup.db';
+
+---
+
+(source_file
+  (vacuum_statement
+    destination: (string_literal)))
+
+==============================================
+reindex: bare
+==============================================
+
+REINDEX;
+
+---
+
+(source_file
+  (reindex_statement))
+
+==============================================
+reindex: target
+==============================================
+
+REINDEX users;
+
+---
+
+(source_file
+  (reindex_statement
+    target: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+analyze
+==============================================
+
+ANALYZE main.users;
+
+---
+
+(source_file
+  (analyze_statement
+    target: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))))
+
+==============================================
+analyze: bare (no target)
+==============================================
+
+ANALYZE;
+
+---
+
+(source_file
+  (analyze_statement))
+
+==============================================
+analyze: schema only
+==============================================
+
+ANALYZE main;
+
+---
+
+(source_file
+  (analyze_statement
+    target: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+analyze: schema-qualified table
+==============================================
+
+ANALYZE main.t1;
+
+---
+
+(source_file
+  (analyze_statement
+    target: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))))
+
+==============================================
+analyze: index name
+==============================================
+
+ANALYZE idx_users_name;
+
+---
+
+(source_file
+  (analyze_statement
+    target: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+multi-stmt: two statements separated by ;
+==============================================
+
+SELECT 1; SELECT 2;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+multi-stmt: trailing ; absent on last statement
+==============================================
+
+SELECT 1; SELECT 2
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+multi-stmt: leading ; (empty statement)
+==============================================
+
+;SELECT 1;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+multi-stmt: doubled ;; between statements
+==============================================
+
+SELECT 1;; SELECT 2;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal))))
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+multi-stmt: mixed DDL/DML
+==============================================
+
+CREATE TABLE t(a); INSERT INTO t VALUES(1); SELECT * FROM t; DROP TABLE t;
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)))
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal)))
+  (select_statement
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier)))))
+  (drop_table_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+multi-stmt: dot-command followed by SELECT
+==============================================
+
+.tables
+SELECT 1;
+
+---
+
+(source_file
+  (dot_command)
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+explain: simple
+==============================================
+
+EXPLAIN SELECT * FROM t;
+
+---
+
+(source_file
+  (explain_statement
+    statement: (select_statement
+      columns: (result_column_list
+        (star_result_column))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))))
+
+==============================================
+explain: query plan
+==============================================
+
+EXPLAIN QUERY PLAN SELECT * FROM t WHERE id = 1;
+
+---
+
+(source_file
+  (explain_statement
+    statement: (select_statement
+      columns: (result_column_list
+        (star_result_column))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier))))
+      where: (where_clause
+        (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+transaction: BEGIN
+==============================================
+
+BEGIN;
+
+---
+
+(source_file
+  (begin_statement))
+
+==============================================
+transaction: BEGIN IMMEDIATE TRANSACTION
+==============================================
+
+BEGIN IMMEDIATE TRANSACTION;
+
+---
+
+(source_file
+  (begin_statement))
+
+==============================================
+transaction: COMMIT
+==============================================
+
+COMMIT;
+
+---
+
+(source_file
+  (commit_statement))
+
+==============================================
+transaction: END as COMMIT alias
+==============================================
+
+END TRANSACTION;
+
+---
+
+(source_file
+  (commit_statement))
+
+==============================================
+transaction: ROLLBACK
+==============================================
+
+ROLLBACK;
+
+---
+
+(source_file
+  (rollback_statement))
+
+==============================================
+transaction: ROLLBACK TO savepoint
+==============================================
+
+ROLLBACK TO SAVEPOINT s1;
+
+---
+
+(source_file
+  (rollback_statement
+    savepoint: (identifier)))
+
+==============================================
+transaction: SAVEPOINT
+==============================================
+
+SAVEPOINT s1;
+
+---
+
+(source_file
+  (savepoint_statement
+    name: (identifier)))
+
+==============================================
+transaction: RELEASE
+==============================================
+
+RELEASE SAVEPOINT s1;
+
+---
+
+(source_file
+  (release_statement
+    name: (identifier)))
+
+==============================================
+dot-command: .system (known canonical)
+==============================================
+
+.system ls /tmp
+
+---
+
+; Known dot-command names from shell.c are aliased to anonymous
+; "name" tokens; the args span is captured as dot_command_arguments
+; so the source is fully covered by the parse tree.
+(source_file
+  (dot_command
+    arguments: (dot_command_arguments)))
+
+==============================================
+dot-command: .read (known canonical)
+==============================================
+
+.read /tmp/init.sql
+
+---
+
+(source_file
+  (dot_command
+    arguments: (dot_command_arguments)))
+
+==============================================
+dot-command: .schema (known canonical)
+==============================================
+
+.schema
+
+---
+
+(source_file
+  (dot_command))
+
+==============================================
+dot-command: .tables (known canonical)
+==============================================
+
+.tables
+
+---
+
+(source_file
+  (dot_command))
+
+==============================================
+dot-command: .quit (known canonical)
+==============================================
+
+.quit
+
+---
+
+(source_file
+  (dot_command))
+
+==============================================
+dot-command: .load (known canonical)
+==============================================
+
+.load extension.so
+
+---
+
+(source_file
+  (dot_command
+    arguments: (dot_command_arguments)))
+
+==============================================
+dot-command: unknown still parses
+==============================================
+
+.somenewcommand args here
+
+---
+
+; Names not in shell.c's canonical list fall through to the
+; `unknown_dot_command_name` arm, which IS a named node. Tools
+; consuming the tree can flag these for review.
+(source_file
+  (dot_command
+    name: (unknown_dot_command_name)
+    arguments: (dot_command_arguments)))

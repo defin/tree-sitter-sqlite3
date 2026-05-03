@@ -1,0 +1,1109 @@
+==============================================
+create table: minimal
+==============================================
+
+CREATE TABLE t (id INTEGER);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))))
+
+==============================================
+create table: column constraints
+==============================================
+
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  email TEXT DEFAULT 'unknown',
+  age INTEGER CHECK (age > 0)
+);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint)
+      constraint: (column_constraint))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        default: (string_literal)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        check: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+create table: IF NOT EXISTS + schema-qualified
+==============================================
+
+CREATE TABLE IF NOT EXISTS main.t (id INTEGER);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))))
+
+==============================================
+create table: STRICT and WITHOUT ROWID
+==============================================
+
+CREATE TABLE t (id INTEGER PRIMARY KEY) STRICT, WITHOUT ROWID;
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint))
+    options: (table_options
+      option: (identifier))))
+
+==============================================
+create table: TEMP TABLE
+==============================================
+
+CREATE TEMP TABLE t (id INTEGER);
+
+---
+
+; "TEMP" is captured as field("temporary", ...) but its value is an
+; anonymous keyword token — anonymous tokens don't appear as named
+; nodes in the tree so the field is invisible at the s-expression
+; layer. The text-level test is that "CREATE TEMP TABLE" parses
+; cleanly as a create_table_statement.
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))))
+
+==============================================
+create table: with foreign key (column-level REFERENCES)
+==============================================
+
+CREATE TABLE orders (id INTEGER, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE);
+
+---
+
+; The ON DELETE CASCADE clause is captured under field("action", ...)
+; but its body is _fk_action (hidden), so the keyword tokens don't
+; show in the tree.
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk action: ON DELETE SET NULL
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) ON DELETE SET NULL);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk action: ON DELETE SET DEFAULT
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) ON DELETE SET DEFAULT);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk action: ON DELETE RESTRICT
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) ON DELETE RESTRICT);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk action: ON DELETE NO ACTION
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) ON DELETE NO ACTION);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk action: ON UPDATE CASCADE + ON DELETE SET NULL
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) ON UPDATE CASCADE ON DELETE SET NULL);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier))))))
+
+==============================================
+fk: column-level DEFERRABLE INITIALLY DEFERRED
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) DEFERRABLE INITIALLY DEFERRED);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier)))
+      constraint: (column_constraint))))
+
+==============================================
+fk: column-level NOT DEFERRABLE INITIALLY IMMEDIATE
+==============================================
+
+CREATE TABLE c (a INTEGER REFERENCES p(id) NOT DEFERRABLE INITIALLY IMMEDIATE);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        (foreign_key_clause
+          table: (identifier)
+          column: (identifier)))
+      constraint: (column_constraint))))
+
+==============================================
+fk: table-level FOREIGN KEY with action and DEFERRABLE
+==============================================
+
+CREATE TABLE c (a, b, FOREIGN KEY(a, b) REFERENCES p(x, y) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier))
+    column: (column_definition
+      name: (identifier))
+    constraint: (table_constraint
+      column: (identifier)
+      column: (identifier)
+      (foreign_key_clause
+        table: (identifier)
+        column: (identifier)
+        column: (identifier)))))
+
+==============================================
+create table: AS SELECT
+==============================================
+
+CREATE TABLE archive AS SELECT * FROM users WHERE id < 100;
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    (select_clause
+      columns: (result_column_list
+        (star_result_column))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier))))
+      where: (where_clause
+        (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+create table: table-level constraints
+==============================================
+
+CREATE TABLE t (
+  a INTEGER,
+  b INTEGER,
+  PRIMARY KEY (a, b),
+  UNIQUE (b),
+  FOREIGN KEY (a) REFERENCES other(id)
+);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    constraint: (table_constraint
+      column: (indexed_column
+        expression: (column_reference
+          name: (identifier)))
+      column: (indexed_column
+        expression: (column_reference
+          name: (identifier))))
+    constraint: (table_constraint
+      column: (indexed_column
+        expression: (column_reference
+          name: (identifier))))
+    constraint: (table_constraint
+      column: (identifier)
+      (foreign_key_clause
+        table: (identifier)
+        column: (identifier)))))
+
+==============================================
+create table: GENERATED AS
+==============================================
+
+CREATE TABLE t (id INTEGER, full_name TEXT GENERATED ALWAYS AS (id || 'x') STORED);
+
+---
+
+; STORED is captured as field("storage", ...) but its value is an
+; anonymous keyword token, so it doesn't appear as a named node.
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        generated_expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (string_literal))))))
+
+==============================================
+generated column: VIRTUAL
+==============================================
+
+CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2) VIRTUAL);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        generated_expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+generated column: shorthand AS without GENERATED ALWAYS
+==============================================
+
+CREATE TABLE t (a INTEGER, b INTEGER AS (a + 1) STORED);
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        generated_expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+generated column: no storage modifier (defaults to VIRTUAL)
+==============================================
+
+CREATE TABLE t (a INTEGER, b INTEGER AS (a + 1));
+
+---
+
+(source_file
+  (create_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier)))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint
+        generated_expression: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+drop table
+==============================================
+
+DROP TABLE users;
+
+---
+
+(source_file
+  (drop_table_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+drop table: IF EXISTS
+==============================================
+
+DROP TABLE IF EXISTS users;
+
+---
+
+(source_file
+  (drop_table_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+alter table: rename to
+==============================================
+
+ALTER TABLE users RENAME TO accounts;
+
+---
+
+(source_file
+  (alter_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    new_name: (identifier)))
+
+==============================================
+alter table: rename column
+==============================================
+
+ALTER TABLE users RENAME COLUMN name TO full_name;
+
+---
+
+(source_file
+  (alter_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    old_column: (identifier)
+    new_column: (identifier)))
+
+==============================================
+alter table: add column
+==============================================
+
+ALTER TABLE users ADD COLUMN email TEXT NOT NULL;
+
+---
+
+(source_file
+  (alter_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (column_definition
+      name: (identifier)
+      type: (type_name
+        (identifier))
+      constraint: (column_constraint))))
+
+==============================================
+alter table: drop column
+==============================================
+
+ALTER TABLE users DROP COLUMN unused;
+
+---
+
+(source_file
+  (alter_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    dropped_column: (identifier)))
+
+==============================================
+create index: simple
+==============================================
+
+CREATE INDEX idx_user_name ON users (name);
+
+---
+
+(source_file
+  (create_index_statement
+    name: (qualified_table_name
+      name: (identifier))
+    table: (identifier)
+    column: (indexed_column
+      expression: (column_reference
+        name: (identifier)))))
+
+==============================================
+create index: UNIQUE + WHERE (partial)
+==============================================
+
+CREATE UNIQUE INDEX idx_email ON users (email) WHERE email IS NOT NULL;
+
+---
+
+; `email IS NOT NULL` parses as is_expression with the right operand
+; being a unary NOT of NULL — that's because PREC.UNARY (NOT) > PREC.
+; COMPARE (IS), so NOT binds tighter and consumes NULL into a unary
+; expression. Semantically `IS NOT NULL` and `IS (NOT NULL)` evaluate
+; the same way (NOT NULL is a NULL value too in 3-valued logic, so
+; this is the one shape both forms collapse to).
+(source_file
+  (create_index_statement
+    name: (qualified_table_name
+      name: (identifier))
+    table: (identifier)
+    column: (indexed_column
+      expression: (column_reference
+        name: (identifier)))
+    where: (where_clause
+      (is_expression
+        left: (column_reference
+          name: (identifier))
+        right: (unary_expression
+          operand: (null_literal))))))
+
+==============================================
+create index: multi-column with sort order
+==============================================
+
+CREATE INDEX idx ON t (a ASC, b DESC);
+
+---
+
+; ASC/DESC captured as field("order", ...) but anonymous keyword
+; tokens don't appear in the tree — so indexed_column shows just
+; the expression at the s-expression layer.
+(source_file
+  (create_index_statement
+    name: (qualified_table_name
+      name: (identifier))
+    table: (identifier)
+    column: (indexed_column
+      expression: (column_reference
+        name: (identifier)))
+    column: (indexed_column
+      expression: (column_reference
+        name: (identifier)))))
+
+==============================================
+drop index
+==============================================
+
+DROP INDEX IF EXISTS idx_user_name;
+
+---
+
+(source_file
+  (drop_index_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+drop index: bare (no IF EXISTS)
+==============================================
+
+DROP INDEX idx_user_name;
+
+---
+
+(source_file
+  (drop_index_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+drop index: schema-qualified
+==============================================
+
+DROP INDEX IF EXISTS main.idx_user_name;
+
+---
+
+(source_file
+  (drop_index_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))))
+
+==============================================
+drop view: bare
+==============================================
+
+DROP VIEW v1;
+
+---
+
+(source_file
+  (drop_view_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+drop view: IF EXISTS + schema-qualified
+==============================================
+
+DROP VIEW IF EXISTS temp.v1;
+
+---
+
+(source_file
+  (drop_view_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))))
+
+==============================================
+drop trigger: bare
+==============================================
+
+DROP TRIGGER tr1;
+
+---
+
+(source_file
+  (drop_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+drop trigger: schema-qualified
+==============================================
+
+DROP TRIGGER IF EXISTS main.tr1;
+
+---
+
+(source_file
+  (drop_trigger_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))))
+
+==============================================
+create view
+==============================================
+
+CREATE VIEW active_users AS SELECT * FROM users WHERE active = 1;
+
+---
+
+(source_file
+  (create_view_statement
+    name: (qualified_table_name
+      name: (identifier))
+    body: (select_clause
+      columns: (result_column_list
+        (star_result_column))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier))))
+      where: (where_clause
+        (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+create view: TEMP + IF NOT EXISTS + col list
+==============================================
+
+CREATE TEMP VIEW IF NOT EXISTS v (a, b) AS SELECT 1, 2;
+
+---
+
+(source_file
+  (create_view_statement
+    name: (qualified_table_name
+      name: (identifier))
+    column: (identifier)
+    column: (identifier)
+    body: (select_clause
+      columns: (result_column_list
+        (expression_result_column
+          expression: (numeric_literal))
+        (expression_result_column
+          expression: (numeric_literal))))))
+
+==============================================
+drop view
+==============================================
+
+DROP VIEW v;
+
+---
+
+(source_file
+  (drop_view_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+create trigger: AFTER INSERT
+==============================================
+
+CREATE TRIGGER log_insert AFTER INSERT ON users BEGIN INSERT INTO audit VALUES (1); END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    body: (insert_statement
+      target: (qualified_table_name
+        name: (identifier))
+      source: (values_clause
+        value: (numeric_literal)))))
+
+==============================================
+create trigger: BEFORE UPDATE
+==============================================
+
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 BEGIN INSERT INTO log VALUES (1); END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    body: (insert_statement
+      target: (qualified_table_name
+        name: (identifier))
+      source: (values_clause
+        value: (numeric_literal)))))
+
+==============================================
+create trigger: INSTEAD OF DELETE on view
+==============================================
+
+CREATE TRIGGER vt1 INSTEAD OF DELETE ON v1 BEGIN DELETE FROM t1 WHERE x=1; END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    body: (delete_statement
+      target: (qualified_table_name
+        name: (identifier))
+      where: (where_clause
+        (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+create trigger: AFTER UPDATE OF columns
+==============================================
+
+CREATE TRIGGER ucol AFTER UPDATE OF a, b ON t1 BEGIN UPDATE counters SET n=n+1; END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event
+      column: (identifier)
+      column: (identifier))
+    table: (qualified_table_name
+      name: (identifier))
+    body: (update_statement
+      target: (qualified_table_name
+        name: (identifier))
+      assignment: (set_assignment
+        column: (identifier)
+        value: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+create trigger: FOR EACH ROW + WHEN
+==============================================
+
+CREATE TRIGGER fr1 AFTER INSERT ON t1 FOR EACH ROW WHEN new.a > 0 BEGIN INSERT INTO log VALUES (1); END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    when: (binary_expression
+      left: (column_reference
+        table: (identifier)
+        name: (identifier))
+      right: (numeric_literal))
+    body: (insert_statement
+      target: (qualified_table_name
+        name: (identifier))
+      source: (values_clause
+        value: (numeric_literal)))))
+
+==============================================
+create trigger: multi-statement body
+==============================================
+
+CREATE TRIGGER multi AFTER INSERT ON t1 BEGIN INSERT INTO log VALUES (1); UPDATE counters SET n=n+1; SELECT 1; END;
+
+---
+
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    body: (insert_statement
+      target: (qualified_table_name
+        name: (identifier))
+      source: (values_clause
+        value: (numeric_literal)))
+    body: (update_statement
+      target: (qualified_table_name
+        name: (identifier))
+      assignment: (set_assignment
+        column: (identifier)
+        value: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))
+    body: (select_statement
+      columns: (result_column_list
+        (expression_result_column
+          expression: (numeric_literal))))))
+
+==============================================
+create trigger: TEMP + IF NOT EXISTS
+==============================================
+
+CREATE TEMP TRIGGER IF NOT EXISTS tt1 AFTER INSERT ON t1 BEGIN SELECT 1; END;
+
+---
+
+; The TEMP keyword is captured by the optional `temporary` field
+; but as an anonymous-token alias, so it doesn't appear as a named
+; node here.
+(source_file
+  (create_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))
+    event: (trigger_event)
+    table: (qualified_table_name
+      name: (identifier))
+    body: (select_statement
+      columns: (result_column_list
+        (expression_result_column
+          expression: (numeric_literal))))))
+
+==============================================
+drop trigger
+==============================================
+
+DROP TRIGGER IF EXISTS log_insert;
+
+---
+
+(source_file
+  (drop_trigger_statement
+    name: (qualified_table_name
+      name: (identifier))))
+
+==============================================
+create virtual table
+==============================================
+
+CREATE VIRTUAL TABLE fts USING fts5(content, tokenize='porter');
+
+---
+
+; Each module-arg is captured as a vtab_module_arg named node so the
+; full module-arg span is preserved in the tree (the inner text is
+; deliberately permissive — sqlite treats vtabarg as ANY token).
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    module: (identifier)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)))
+
+==============================================
+virtual table: no module args
+==============================================
+
+CREATE VIRTUAL TABLE rtree_idx USING rtree;
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    module: (identifier)))
+
+==============================================
+virtual table: empty arg list
+==============================================
+
+CREATE VIRTUAL TABLE t USING myvtab();
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    module: (identifier)))
+
+==============================================
+virtual table: IF NOT EXISTS + schema
+==============================================
+
+CREATE VIRTUAL TABLE IF NOT EXISTS temp.fts USING fts5(content);
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))
+    module: (identifier)
+    module_arguments: (vtab_module_arg)))
+
+==============================================
+virtual table: column-decl-style args (fts3 / fts4 idiom)
+==============================================
+
+CREATE VIRTUAL TABLE t0 USING fts3(col0 INTEGER PRIMARY KEY, col1 VARCHAR(8), col2 BINARY);
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    module: (identifier)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)))
+
+==============================================
+virtual table: bracket-quoted column-decl args
+==============================================
+
+CREATE VIRTUAL TABLE email USING fts3([from], [to], subject, body);
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      name: (identifier))
+    module: (identifier)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)))
+
+==============================================
+virtual table: csv with key=value args (commas inside string)
+==============================================
+
+CREATE VIRTUAL TABLE temp.t USING csv(data='1,2,3', columns=4, schema='CREATE TABLE x(a)');
+
+---
+
+(source_file
+  (create_virtual_table_statement
+    name: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))
+    module: (identifier)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)
+    module_arguments: (vtab_module_arg)))

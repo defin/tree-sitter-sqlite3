@@ -1,0 +1,461 @@
+==============================================
+cte: simple WITH
+==============================================
+
+WITH t AS (SELECT 1) SELECT * FROM t;
+
+---
+
+(source_file
+  (select_statement
+    with: (with_clause
+      cte: (cte_definition
+        name: (identifier)
+        body: (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (numeric_literal))))))
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+cte: WITH RECURSIVE
+==============================================
+
+WITH RECURSIVE counter (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM counter WHERE n < 10) SELECT * FROM counter;
+
+---
+
+; Compound SELECT inside the CTE body — the second arm of UNION ALL
+; flattens into the same select_clause via repeat(...) rather than
+; nesting a sub-select_clause node. Each arm contributes its own
+; result_column_list / from / where fields to the outer node.
+(source_file
+  (select_statement
+    with: (with_clause
+      cte: (cte_definition
+        name: (identifier)
+        column: (identifier)
+        body: (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (numeric_literal)))
+          columns: (result_column_list
+            (expression_result_column
+              expression: (binary_expression
+                left: (column_reference
+                  name: (identifier))
+                right: (numeric_literal))))
+          from: (from_clause
+            source: (table_or_subquery
+              (qualified_table_name
+                name: (identifier))))
+          where: (where_clause
+            (binary_expression
+              left: (column_reference
+                name: (identifier))
+              right: (numeric_literal))))))
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+cte: MATERIALIZED
+==============================================
+
+WITH t AS MATERIALIZED (SELECT 1) SELECT * FROM t;
+
+---
+
+(source_file
+  (select_statement
+    with: (with_clause
+      cte: (cte_definition
+        name: (identifier)
+        body: (select_clause
+          columns: (result_column_list
+            (expression_result_column
+              expression: (numeric_literal))))))
+    columns: (result_column_list
+      (star_result_column))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+compound: UNION
+==============================================
+
+SELECT 1 UNION SELECT 2;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+compound: UNION ALL
+==============================================
+
+SELECT a FROM t1 UNION ALL SELECT b FROM t2;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    columns: (result_column_list
+      (expression_result_column
+        expression: (column_reference
+          name: (identifier))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+compound: INTERSECT and EXCEPT chained
+==============================================
+
+SELECT 1 INTERSECT SELECT 2 EXCEPT SELECT 3;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+compound: parenthesized operands
+==============================================
+
+(SELECT a FROM t1) UNION (SELECT b FROM t2);
+
+---
+
+(source_file
+  (select_statement
+    (select_clause
+      columns: (result_column_list
+        (expression_result_column
+          expression: (column_reference
+            name: (identifier))))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))
+    (select_clause
+      columns: (result_column_list
+        (expression_result_column
+          expression: (column_reference
+            name: (identifier))))
+      from: (from_clause
+        source: (table_or_subquery
+          (qualified_table_name
+            name: (identifier)))))))
+
+==============================================
+compound: nested compound with parens
+==============================================
+
+(SELECT 1 UNION SELECT 2) EXCEPT SELECT 3;
+
+---
+
+(source_file
+  (select_statement
+    (select_clause
+      columns: (result_column_list
+        (expression_result_column
+          expression: (numeric_literal)))
+      columns: (result_column_list
+        (expression_result_column
+          expression: (numeric_literal))))
+    columns: (result_column_list
+      (expression_result_column
+        expression: (numeric_literal)))))
+
+==============================================
+window: simple OVER
+==============================================
+
+SELECT row_number() OVER () FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          over: (over_clause))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+window: PARTITION BY + ORDER BY
+==============================================
+
+SELECT rank() OVER (PARTITION BY dept ORDER BY salary DESC) FROM emp;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          over: (over_clause
+            (window_definition
+              (window_partition_clause
+                expression: (column_reference
+                  name: (identifier)))
+              (order_by_clause
+                (order_term
+                  (column_reference
+                    name: (identifier)))))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+window: frame ROWS BETWEEN
+==============================================
+
+SELECT sum(x) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (normal_function_arguments
+            (column_reference
+              name: (identifier)))
+          over: (over_clause
+            (window_definition
+              (order_by_clause
+                (order_term
+                  (column_reference
+                    name: (identifier))))
+              (window_frame_clause
+                start: (window_frame_bound)
+                end: (window_frame_bound)))))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+window: FILTER (WHERE ...)
+==============================================
+
+SELECT count(*) FILTER (WHERE x > 0) OVER () FROM t;
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          arguments: (star_argument)
+          filter: (filter_clause
+            (binary_expression
+              left: (column_reference
+                name: (identifier))
+              right: (numeric_literal)))
+          over: (over_clause))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))))
+
+==============================================
+window: named WINDOW clause
+==============================================
+
+SELECT rank() OVER w FROM t WINDOW w AS (ORDER BY id);
+
+---
+
+(source_file
+  (select_statement
+    columns: (result_column_list
+      (expression_result_column
+        expression: (function_call
+          name: (identifier)
+          over: (over_clause
+            window_name: (identifier)))))
+    from: (from_clause
+      source: (table_or_subquery
+        (qualified_table_name
+          name: (identifier))))
+    window: (window_clause
+      (named_window
+        name: (identifier)
+        (window_definition
+          (order_by_clause
+            (order_term
+              (column_reference
+                name: (identifier)))))))))
+
+==============================================
+upsert: ON CONFLICT DO NOTHING
+==============================================
+
+INSERT INTO t (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    columns: (column_name_list
+      column: (identifier))
+    source: (values_clause
+      value: (numeric_literal))
+    upsert: (upsert_clause
+      target_column: (indexed_column
+        expression: (column_reference
+          name: (identifier))))))
+
+==============================================
+upsert: ON CONFLICT DO UPDATE SET
+==============================================
+
+INSERT INTO t (id, n) VALUES (1, 1) ON CONFLICT (id) DO UPDATE SET n = n + 1;
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    columns: (column_name_list
+      column: (identifier)
+      column: (identifier))
+    source: (values_clause
+      value: (numeric_literal)
+      value: (numeric_literal))
+    upsert: (upsert_clause
+      target_column: (indexed_column
+        expression: (column_reference
+          name: (identifier)))
+      assignment: (set_assignment
+        column: (identifier)
+        value: (binary_expression
+          left: (column_reference
+            name: (identifier))
+          right: (numeric_literal))))))
+
+==============================================
+returning: INSERT
+==============================================
+
+INSERT INTO t (n) VALUES (1) RETURNING id, n;
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    columns: (column_name_list
+      column: (identifier))
+    source: (values_clause
+      value: (numeric_literal))
+    returning: (returning_clause
+      (result_column_list
+        (expression_result_column
+          expression: (column_reference
+            name: (identifier)))
+        (expression_result_column
+          expression: (column_reference
+            name: (identifier)))))))
+
+==============================================
+returning: UPDATE
+==============================================
+
+UPDATE t SET n = 2 WHERE id = 1 RETURNING *;
+
+---
+
+(source_file
+  (update_statement
+    target: (qualified_table_name
+      name: (identifier))
+    assignment: (set_assignment
+      column: (identifier)
+      value: (numeric_literal))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (numeric_literal)))
+    returning: (returning_clause
+      (result_column_list
+        (star_result_column)))))
+
+==============================================
+returning: DELETE
+==============================================
+
+DELETE FROM t WHERE id = 1 RETURNING id;
+
+---
+
+(source_file
+  (delete_statement
+    target: (qualified_table_name
+      name: (identifier))
+    where: (where_clause
+      (binary_expression
+        left: (column_reference
+          name: (identifier))
+        right: (numeric_literal)))
+    returning: (returning_clause
+      (result_column_list
+        (expression_result_column
+          expression: (column_reference
+            name: (identifier)))))))

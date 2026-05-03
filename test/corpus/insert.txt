@@ -1,0 +1,164 @@
+==============================================
+insert: simple values
+==============================================
+
+INSERT INTO users VALUES (1, 'alice');
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal)
+      value: (string_literal))))
+
+==============================================
+insert: with column list
+==============================================
+
+INSERT INTO users (id, name) VALUES (1, 'alice');
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    columns: (column_name_list
+      column: (identifier)
+      column: (identifier))
+    source: (values_clause
+      value: (numeric_literal)
+      value: (string_literal))))
+
+==============================================
+insert: multiple rows
+==============================================
+
+INSERT INTO users VALUES (1, 'alice'), (2, 'bob');
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal)
+      value: (string_literal)
+      value: (numeric_literal)
+      value: (string_literal))))
+
+==============================================
+insert: schema-qualified
+==============================================
+
+INSERT INTO main.users VALUES (1);
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      schema: (identifier)
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal))))
+
+==============================================
+insert: default values
+==============================================
+
+INSERT INTO users DEFAULT VALUES;
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (default_values_clause)))
+
+==============================================
+insert: replace into
+==============================================
+
+REPLACE INTO users VALUES (1);
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal))))
+
+==============================================
+insert: or ignore
+==============================================
+
+INSERT OR IGNORE INTO users VALUES (1);
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal))))
+
+==============================================
+insert: case-insensitive keywords
+==============================================
+
+insert into Users values (1, 'alice');
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (numeric_literal)
+      value: (string_literal))))
+
+==============================================
+insert: bind parameter
+==============================================
+
+INSERT INTO users (id) VALUES (?);
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    columns: (column_name_list
+      column: (identifier))
+    source: (values_clause
+      value: (bind_parameter))))
+
+==============================================
+insert: arithmetic in values
+==============================================
+
+INSERT INTO t VALUES (1 + 2 * 3);
+
+---
+
+(source_file
+  (insert_statement
+    target: (qualified_table_name
+      name: (identifier))
+    source: (values_clause
+      value: (binary_expression
+        left: (numeric_literal)
+        right: (binary_expression
+          left: (numeric_literal)
+          right: (numeric_literal))))))

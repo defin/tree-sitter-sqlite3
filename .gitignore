@@ -1,0 +1,34 @@
+node_modules/
+target/
+build/
+Cargo.lock
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.wasm
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Python
+__pycache__/
+*.egg-info/
+dist/
+*.whl
+.venv/
+.tox/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local project-todo DB (mem/todo CLI)
+.todo.ini
+todo.sqlite
+
+# Upstream sqlite test corpus is fetched on demand by
+# scripts/fetch-test-corpus.sh; not committed.
+vendor/sqlite-test-corpus/

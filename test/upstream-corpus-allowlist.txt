@@ -1,0 +1,14 @@
+# Allowlist for the upstream-corpus harness (scripts/parse-upstream-corpus.py).
+#
+# Each line is a fragment source location (file:line) that is permitted
+# to fail parsing despite our grammar's "faithful reproduction" claim.
+# Every entry MUST have an inline rationale.
+#
+# Format: <path>:<line>  # rationale
+#
+# Hard rule: this file should shrink over time, not grow. Adding an
+# entry to silence a CI failure without a substantive rationale is a
+# bug.
+
+# (no entries yet — the goal is to keep this list empty by fixing the
+#  grammar instead of allowlisting)

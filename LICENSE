@@ -1,0 +1,22 @@
+tree-sitter-sqlite3 follows the same licensing posture as the upstream
+SQLite project, from which its grammar is translated.
+
+The author(s) disclaim copyright to this source code. In place of a
+legal notice, here is a blessing:
+
+    May you do good and not evil.
+    May you find forgiveness for yourself and forgive others.
+    May you share freely, never taking more than you give.
+
+For jurisdictions that do not recognize a public-domain dedication, the
+following Creative Commons Zero v1.0 Universal grant applies as a
+fallback:
+
+    To the extent possible under law, the author(s) have waived all
+    copyright and related or neighboring rights to this work. This work
+    is published from the United States of America.
+
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+The vendored sqlite source files under vendor/ are dedicated to the
+public domain by the SQLite project. See https://www.sqlite.org/copyright.html.

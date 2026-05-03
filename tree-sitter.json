@@ -1,0 +1,43 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "sqlite3",
+      "camelcase": "Sqlite3",
+      "title": "SQLite3",
+      "scope": "source.sqlite3",
+      "path": ".",
+      "file-types": [
+        "sql",
+        "sqlite",
+        "sqlite3"
+      ],
+      "highlights": [
+        "queries/highlights.scm"
+      ],
+      "injection-regex": "^(sqlite3|sqlite|sql)$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "CC0-1.0",
+    "description": "Tree-sitter grammar for SQLite's SQL dialect plus dot-commands, faithful to upstream parse.y.",
+    "authors": [
+      {
+        "name": "df",
+        "email": "defin@users.noreply.github.com"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/defin/tree-sitter-sqlite3"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true
+  }
+}

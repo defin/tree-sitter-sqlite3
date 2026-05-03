@@ -1,0 +1,109 @@
+# Development container for tree-sitter-sqlite3.
+#
+# Provides node.js + tree-sitter-cli + python3 + build-essential so
+# every binding can be exercised. The repo is bind-mounted at
+# /workspace via docker-compose.yml; the image itself stays small
+# and the workspace state is on the host.
+
+FROM node:22-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        curl \
+        ca-certificates \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+        pkg-config \
+        clang \
+        llvm \
+        libclang-rt-14-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# tree-sitter-cli installed globally so `tree-sitter generate` /
+# `tree-sitter test` work from any cwd in the container without
+# having to enter a per-package node_modules. Pinned to the same
+# major.minor as the Cargo.toml / pyproject.toml peer dep ranges
+# expect (0.25.x).
+RUN npm install -g tree-sitter-cli@0.25
+
+# Build libtree-sitter (the runtime) so the libFuzzer harness in
+# fuzz/ can link against it. tree-sitter-cli ships the CLI but not
+# the runtime headers/lib; we fetch the source release tarball.
+ARG TREE_SITTER_VERSION=0.25.10
+RUN curl -fsSL https://github.com/tree-sitter/tree-sitter/archive/refs/tags/v${TREE_SITTER_VERSION}.tar.gz \
+        -o /tmp/ts.tar.gz \
+    && cd /tmp && tar -xzf ts.tar.gz \
+    && cd tree-sitter-${TREE_SITTER_VERSION} \
+    && make CFLAGS="-O2 -fPIC" -j"$(nproc)" \
+    && make PREFIX=/usr/local install \
+    && ldconfig \
+    && cd / && rm -rf /tmp/ts.tar.gz /tmp/tree-sitter-${TREE_SITTER_VERSION}
+
+# Python tooling. tree-sitter is the host bindings; the rest are for
+# building/testing the python wheel locally.
+RUN pip install --no-cache-dir --break-system-packages \
+        "tree-sitter>=0.25,<0.26" \
+        build \
+        pytest \
+        setuptools \
+        wheel
+
+# Rust toolchain for the rust binding tests.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH=/root/.cargo/bin:$PATH
+
+# Build libsqlite3 from source at the version pinned in vendor/README.md.
+# Debian bookworm ships sqlite 3.40.x, but the grammar tracks 3.47.0
+# (post-3.44 aggregate ORDER-BY, RIGHT/FULL JOIN, etc.), so the
+# differential harness needs the matching libsqlite3 to compare apples
+# to apples.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build libsqlite3 from the amalgamation at the version pinned in
+# vendor/README.md. NOTE: parse.y has %ifdef-gated productions
+# (notably SQLITE_ENABLE_UPDATE_DELETE_LIMIT) that are resolved at
+# lemon-generation time BEFORE the amalgamation is produced. The
+# stock amalgamation is generated without UPDATE_DELETE_LIMIT, so
+# DELETE/UPDATE with ORDER BY/LIMIT is rejected by the libsqlite3
+# our differential builds against. Our grammar accepts them per
+# parse.y's full surface; the resulting SS-RA cases are documented
+# in test/differential-allowlist.txt as build-flag-dependent.
+ARG SQLITE_AMALGAMATION_URL=https://sqlite.org/2024/sqlite-amalgamation-3470000.zip
+RUN curl -fsSL "$SQLITE_AMALGAMATION_URL" -o /tmp/sqlite.zip \
+    && cd /tmp \
+    && unzip -q sqlite.zip \
+    && cd sqlite-amalgamation-3470000 \
+    && gcc -O2 -fPIC -shared \
+           -DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS5 \
+           -DSQLITE_ENABLE_RTREE -DSQLITE_ENABLE_JSON1 \
+           sqlite3.c -o /usr/local/lib/libsqlite3.so.0.8.6 -lpthread -ldl -lm \
+    && ln -sf libsqlite3.so.0.8.6 /usr/local/lib/libsqlite3.so.0 \
+    && ln -sf libsqlite3.so.0 /usr/local/lib/libsqlite3.so \
+    && cp sqlite3.h /usr/local/include/ \
+    && ldconfig \
+    && cd / && rm -rf /tmp/sqlite.zip /tmp/sqlite-amalgamation-3470000
+
+# Build sqlite-tokenize: a shim that exposes sqlite3GetToken (private
+# in the amalgamation) by compiling sqlite3.c with -DSQLITE_PRIVATE=
+# (empty). Used by scripts/lexer-differential-test.py (todo 11c).
+RUN curl -fsSL "$SQLITE_AMALGAMATION_URL" -o /tmp/sqlite.zip \
+    && cd /tmp \
+    && unzip -q sqlite.zip \
+    && mkdir -p /usr/local/share/sqlite-tokenize-build \
+    && cp sqlite-amalgamation-3470000/sqlite3.c sqlite-amalgamation-3470000/sqlite3.h \
+          /usr/local/share/sqlite-tokenize-build/ \
+    && rm -rf /tmp/sqlite.zip /tmp/sqlite-amalgamation-3470000
+COPY tools/sqlite-tokenize.c /usr/local/share/sqlite-tokenize-build/
+RUN cd /usr/local/share/sqlite-tokenize-build \
+    && gcc -O2 -DSQLITE_PRIVATE= -DSQLITE_API= \
+           sqlite-tokenize.c sqlite3.c \
+           -o /usr/local/bin/sqlite-tokenize \
+           -lpthread -ldl -lm
+
+WORKDIR /workspace
+CMD ["bash"]
